@@ -40,6 +40,11 @@ input,select{border:1px solid #d2d2d7;background:#fff}button{border:0;background
 
 <div id="quiz" class="hidden"><div class="card center"><div id="progress" class="muted"></div><div id="question" class="word"></div><div id="dirLabel" class="muted"></div>
 <input id="answer" placeholder="Napíš preklad" autocapitalize="none" autocomplete="off">
+<div class="row">
+<button id="mic" class="secondary" type="button">🎤 Odpovedať hlasom</button>
+<button id="speak" class="secondary" type="button">🔊 Vypočuť</button>
+</div>
+<p id="voiceStatus" class="muted center"></p>
 <button id="check">SKONTROLOVAŤ</button><div id="result" class="answer"></div><button id="next" class="secondary hidden">ĎALEJ</button></div></div>
 
 <div id="finish" class="hidden"><div class="card center"><h2>Hotovo 🎉</h2><div id="score" style="font-size:40px;font-weight:700;margin:15px"></div><p id="scoreText"></p><button id="back">SPÄŤ</button></div></div>
@@ -57,7 +62,45 @@ $('add').onclick=()=>{let sk=$('sk').value.trim(),en=$('en').value.trim();if(!sk
 $('swap').onclick=()=>[$('sk').value,$('en').value]=[$('en').value,$('sk').value];
 $('list').onclick=e=>{let b=e.target.closest('[data-del]');if(b){words.splice(+b.dataset.del,1);save()}}
 $('start').onclick=()=>{if(!words.length){alert('Najprv pridaj slovíčka.');return}let n=Math.min(+$('count').value,words.length);quiz=[...words].sort(()=>Math.random()-.5).slice(0,n);qi=0;correct=0;$('home').classList.add('hidden');$('quiz').classList.remove('hidden');show()}
-function show(){current=quiz[qi];let d=$('direction').value;if(d==='random')d=Math.random()<.5?'sk-en':'en-sk';current.d=d;$('progress').textContent=`Slovo ${qi+1} z ${quiz.length}`;$('question').textContent=d==='sk-en'?current.sk:current.en;$('dirLabel').textContent=d==='sk-en'?'Prelož do angličtiny':'Prelož do slovenčiny';$('answer').value='';$('answer').disabled=false;$('result').textContent='';$('check').classList.remove('hidden');$('next').classList.add('hidden');setTimeout(()=>$('answer').focus(),50)}
+function show(){current=quiz[qi];let d=$('direction').value;if(d==='random')d=Math.random()<.5?'sk-en':'en-sk';current.d=d;$('progress').textContent=`Slovo ${qi+1} z ${quiz.length}`;$('question').textContent=d==='sk-en'?current.sk:current.en;$('dirLabel').textContent=d==='sk-en'?'Prelož do angličtiny':'Prelož do slovenčiny';$('answer').value='';$('answer').disabled=false;$('result').textContent='';$('voiceStatus').textContent='';$('check').classList.remove('hidden');$('next').classList.add('hidden');setTimeout(()=>$('answer').focus(),50)}
+
+const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
+let recognition=null;
+if(SpeechRecognition){
+  recognition=new SpeechRecognition();
+  recognition.lang='en-US';
+  recognition.interimResults=false;
+  recognition.continuous=false;
+  recognition.maxAlternatives=3;
+  recognition.onstart=()=>{$('voiceStatus').textContent='🎤 Počúvam... povedz preklad.';$('mic').textContent='🛑 Zastaviť';};
+  recognition.onend=()=>{$('mic').textContent='🎤 Odpovedať hlasom';};
+  recognition.onerror=e=>{$('voiceStatus').textContent='Mikrofón: '+(e.error==='not-allowed'?'povolenie zamietnuté.':'nepodarilo sa rozpoznať hlas.');$('mic').textContent='🎤 Odpovedať hlasom';};
+  recognition.onresult=e=>{
+    let text=e.results[0][0].transcript;
+    $('answer').value=text;
+    $('voiceStatus').textContent='Rozpoznané: „'+text+'“';
+  };
+}else{
+  $('mic').disabled=true;
+  $('voiceStatus').textContent='Hlasové rozpoznávanie nie je v tomto prehliadači dostupné.';
+}
+$('mic').onclick=()=>{
+  if(!recognition)return;
+  if($('mic').textContent.includes('Zastaviť')){recognition.stop();return;}
+  recognition.lang=current && current.d==='sk-en' ? 'en-US' : 'sk-SK';
+  try{recognition.start()}catch(e){}
+};
+$('speak').onclick=()=>{
+  if(!current)return;
+  let text=current.en;
+  if('speechSynthesis' in window){
+    speechSynthesis.cancel();
+    let u=new SpeechSynthesisUtterance(text);
+    u.lang='en-US';
+    u.rate=0.85;
+    speechSynthesis.speak(u);
+  }
+};
 $('check').onclick=()=>{let expected=current.d==='sk-en'?current.en:current.sk;if(norm($('answer').value)===norm(expected)){correct++;$('result').innerHTML='<span class="success">✓ Správne!</span>'}else $('result').innerHTML=`<span class="error">✗ Nesprávne.</span><br>Správne: <b>${esc(expected)}</b>`;$('answer').disabled=true;$('check').classList.add('hidden');$('next').classList.remove('hidden')}
 $('answer').onkeydown=e=>{if(e.key==='Enter'&&!$('answer').disabled)$('check').click()}
 $('next').onclick=()=>{qi++;if(qi<quiz.length)show();else{$('quiz').classList.add('hidden');$('finish').classList.remove('hidden');let p=Math.round(correct/quiz.length*100);$('score').textContent=`${correct} / ${quiz.length}`;$('scoreText').textContent=`Úspešnosť: ${p} %.`}}
