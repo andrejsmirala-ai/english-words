@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="sk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#007aff">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon.svg">
+<title>English Words</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f5f5f7;color:#1d1d1f;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+.app{max-width:600px;margin:auto;padding:18px 16px calc(35px + env(safe-area-inset-bottom))}
+h1{font-size:31px;margin:5px 0 20px}.card{background:#fff;border-radius:18px;padding:18px;margin-bottom:14px;box-shadow:0 2px 12px #0001}
+h2{font-size:22px;margin:0 0 12px}input,select,button{width:100%;font-size:17px;padding:13px;border-radius:12px;margin-top:9px}
+input,select{border:1px solid #d2d2d7;background:#fff}button{border:0;background:#007aff;color:#fff;font-weight:700}
+.secondary{background:#e9e9ee;color:#1d1d1f}.danger{background:#ff3b30}.row{display:flex;gap:9px}.row>*{flex:1}
+.center{text-align:center}.muted{color:#6e6e73}.hidden{display:none}.word{font-size:35px;font-weight:700;text-align:center;margin:20px 0 5px}
+.answer{font-size:19px;text-align:center;min-height:30px;margin:12px}.success{color:#16803c;font-weight:700}.error{color:#d70015;font-weight:700}
+.item{display:flex;justify-content:space-between;align-items:center;border-top:1px solid #eee;padding:10px 0}.item:first-child{border-top:0}
+.item button{width:auto;padding:7px 12px;margin:0}.list{max-height:330px;overflow:auto}.badge{background:#eee;border-radius:9px;padding:4px 8px;font-size:14px}
+</style>
+</head>
+<body><main class="app">
+<h1>🇬🇧 English Words</h1>
+<div id="home">
+<div class="card"><h2>Pridať slovíčko</h2>
+<input id="sk" placeholder="Slovensky"><input id="en" placeholder="English">
+<div class="row"><button id="add">PRIDAŤ</button><button class="secondary" id="swap">↔ Prehodiť</button></div>
+<p id="addStatus" class="muted center"></p></div>
+
+<div class="card"><h2>Preskúšanie</h2>
+<div class="row"><select id="count"><option>10</option><option selected>20</option><option>30</option><option>50</option></select>
+<select id="direction"><option value="sk-en">SK → EN</option><option value="en-sk">EN → SK</option><option value="random">Náhodne</option></select></div>
+<button id="start">ZAČAŤ PRESKÚŠANIE</button><p id="wordCount" class="muted center"></p></div>
+
+<div class="card"><h2>Moje slovíčka <span id="badge" class="badge">0</span></h2><div id="list" class="list"></div>
+<div class="row"><button class="secondary" id="export">⬇ Export</button><button class="secondary" id="importBtn">⬆ Import</button></div>
+<input id="file" type="file" accept=".json,application/json" class="hidden"><p id="backup" class="muted center"></p></div>
+</div>
+
+<div id="quiz" class="hidden"><div class="card center"><div id="progress" class="muted"></div><div id="question" class="word"></div><div id="dirLabel" class="muted"></div>
+<input id="answer" placeholder="Napíš preklad" autocapitalize="none" autocomplete="off">
+<button id="check">SKONTROLOVAŤ</button><div id="result" class="answer"></div><button id="next" class="secondary hidden">ĎALEJ</button></div></div>
+
+<div id="finish" class="hidden"><div class="card center"><h2>Hotovo 🎉</h2><div id="score" style="font-size:40px;font-weight:700;margin:15px"></div><p id="scoreText"></p><button id="back">SPÄŤ</button></div></div>
+</main>
+<script>
+const KEY='englishWords.v1';
+let words=[];try{words=JSON.parse(localStorage.getItem(KEY)||'[]')}catch(e){words=[]}
+let quiz=[],qi=0,correct=0,current=null;
+const $=id=>document.getElementById(id);
+function save(){localStorage.setItem(KEY,JSON.stringify(words));render()}
+function norm(s){return s.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')}
+function esc(s){return s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function render(){$('badge').textContent=words.length;$('wordCount').textContent=words.length?`Máš uložených ${words.length} slovíčok.`:'Zatiaľ nemáš uložené žiadne slovíčka.';$('list').innerHTML=words.map((w,i)=>`<div class="item"><span><b>${esc(w.sk)}</b> – ${esc(w.en)}</span><button class="danger" data-del="${i}">×</button></div>`).join('')||'<p class="muted center">Zoznam je prázdny.</p>'}
+$('add').onclick=()=>{let sk=$('sk').value.trim(),en=$('en').value.trim();if(!sk||!en){$('addStatus').innerHTML='<span class="error">Zadaj obe slovíčka.</span>';return}words.push({sk,en});$('sk').value='';$('en').value='';save();$('addStatus').innerHTML='<span class="success">✓ Pridané.</span>';setTimeout(()=>$('addStatus').textContent='',1500)}
+$('swap').onclick=()=>[$('sk').value,$('en').value]=[$('en').value,$('sk').value];
+$('list').onclick=e=>{let b=e.target.closest('[data-del]');if(b){words.splice(+b.dataset.del,1);save()}}
+$('start').onclick=()=>{if(!words.length){alert('Najprv pridaj slovíčka.');return}let n=Math.min(+$('count').value,words.length);quiz=[...words].sort(()=>Math.random()-.5).slice(0,n);qi=0;correct=0;$('home').classList.add('hidden');$('quiz').classList.remove('hidden');show()}
+function show(){current=quiz[qi];let d=$('direction').value;if(d==='random')d=Math.random()<.5?'sk-en':'en-sk';current.d=d;$('progress').textContent=`Slovo ${qi+1} z ${quiz.length}`;$('question').textContent=d==='sk-en'?current.sk:current.en;$('dirLabel').textContent=d==='sk-en'?'Prelož do angličtiny':'Prelož do slovenčiny';$('answer').value='';$('answer').disabled=false;$('result').textContent='';$('check').classList.remove('hidden');$('next').classList.add('hidden');setTimeout(()=>$('answer').focus(),50)}
+$('check').onclick=()=>{let expected=current.d==='sk-en'?current.en:current.sk;if(norm($('answer').value)===norm(expected)){correct++;$('result').innerHTML='<span class="success">✓ Správne!</span>'}else $('result').innerHTML=`<span class="error">✗ Nesprávne.</span><br>Správne: <b>${esc(expected)}</b>`;$('answer').disabled=true;$('check').classList.add('hidden');$('next').classList.remove('hidden')}
+$('answer').onkeydown=e=>{if(e.key==='Enter'&&!$('answer').disabled)$('check').click()}
+$('next').onclick=()=>{qi++;if(qi<quiz.length)show();else{$('quiz').classList.add('hidden');$('finish').classList.remove('hidden');let p=Math.round(correct/quiz.length*100);$('score').textContent=`${correct} / ${quiz.length}`;$('scoreText').textContent=`Úspešnosť: ${p} %.`}}
+$('back').onclick=()=>{$('finish').classList.add('hidden');$('home').classList.remove('hidden');render()}
+$('export').onclick=()=>{if(!words.length)return;let b=new Blob([JSON.stringify({version:1,words},null,2)],{type:'application/json'}),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download='english_words_backup.json';a.click();URL.revokeObjectURL(u);$('backup').textContent='✓ Záloha vytvorená.'}
+$('importBtn').onclick=()=>$('file').click();
+$('file').onchange=e=>{let f=e.target.files[0];if(!f)return;let r=new FileReader();r.onload=()=>{try{let d=JSON.parse(r.result),a=Array.isArray(d)?d:d.words;if(!Array.isArray(a))throw 0;let set=new Set(words.map(w=>norm(w.sk)+'|'+norm(w.en)));a.filter(w=>w&&w.sk&&w.en).forEach(w=>{let k=norm(w.sk)+'|'+norm(w.en);if(!set.has(k)){words.push({sk:w.sk.trim(),en:w.en.trim()});set.add(k)}});save();$('backup').textContent='✓ Import hotový.'}catch(x){$('backup').innerHTML='<span class="error">Import sa nepodaril.</span>'}};r.readAsText(f)}
+if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
+render();
+</script></body></html>
